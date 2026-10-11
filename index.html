@@ -172,6 +172,8 @@ details > summary { cursor: pointer; font-family: var(--font-display); font-weig
 .phase-ed h4 { margin: 0; font: 600 15px var(--font-display); letter-spacing: .06em; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
 .phase-ed h4 i { width: 10px; height: 10px; border-radius: 2px; background: var(--c); display: inline-block; }
 .settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; }
+.widget-steps { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 760px) { .widget-steps { grid-template-columns: minmax(0, 1fr); } }
 .danger { background: none; border: 1px solid var(--missed); color: var(--missed); padding: 8px 12px; border-radius: 8px; font-weight: 600; }
 .confirm { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; font-size: 13.5px; }
 
@@ -264,6 +266,25 @@ details > summary { cursor: pointer; font-family: var(--font-display); font-weig
         </table>
       </section>
     </div>
+
+    <section class="panel" id="widgetPanel">
+      <div class="label">Widget iPhone</div>
+      <h3 style="font-size:22px;margin-top:4px">Ta progression sur l'écran d'accueil</h3>
+      <div class="widget-steps">
+        <ol class="tips">
+          <li>Installe l'app gratuite <b>Scriptable</b> depuis l'App Store.</li>
+          <li>Touche <b>Copier le script</b> ci-dessous.</li>
+          <li>Dans Scriptable, touche <b>+</b>, colle le script et renomme-le exactement <b>Pompes30</b>.</li>
+          <li>Sur l'écran d'accueil (ou l'écran verrouillé), ajoute un widget <b>Scriptable</b>, puis choisis le script <b>Pompes30</b> en le modifiant.</li>
+          <li>Après chaque séance, touche <b>Mettre à jour le widget</b> pour qu'il affiche tes jours faits.</li>
+        </ol>
+        <div class="row" style="justify-content:flex-start;align-content:start">
+          <button class="chip" id="copyWidget">Copier le script</button>
+          <a class="chip primary" id="syncWidget" href="#">Mettre à jour le widget</a>
+          <a class="chip" href="pompes30-widget.js" target="_blank" rel="noopener">Voir le script</a>
+        </div>
+      </div>
+    </section>
 
     <section class="panel">
       <details id="customize">
@@ -532,6 +553,7 @@ function render() {
   $("editStart").value = state.start;
   if (document.activeElement !== $("remTime")) $("remTime").value = state.remTime;
   $("gcalLink").href = gcalUrl();
+  $("syncWidget").href = widgetUrl();
 }
 
 function renderStats(t) {
@@ -599,6 +621,7 @@ function renderSession(t) {
       ${r.max && firstMax ? `<p class="note">Jour 1 : ${firstMax} → Jour 30 : ${r.max} (${r.max - firstMax >= 0 ? "+" : ""}${r.max - firstMax} pompes)</p>` : ""}
       ${!firstMax ? `<p class="note">Note ton max du jour 1 dans « Mon suivi » pour voir ta progression.</p>` : ""}`;
   }
+  if (isDone(d)) left += `<a class="chip" href="${widgetUrl()}" style="margin-top:12px">Mettre à jour le widget iPhone</a>`;
   if (isMissed(d)) left += `<div class="warn">Jour manqué. Fais-le dès que possible puis coche tes séries pour garder le fil.</div>`;
   if (d !== t && t >= 1 && t <= 30) left += `<button class="bigbtn ghost" id="goToday" style="font-size:16px">Revenir à aujourd'hui (jour ${t})</button>`;
 
@@ -755,6 +778,27 @@ function gcalUrl() {
   });
   return "https://calendar.google.com/calendar/render?" + q.toString();
 }
+
+// ---------- Scriptable widget sync ----------
+function widgetUrl() {
+  // Compact snapshot read by the "Pompes30" Scriptable script.
+  const payload = {
+    s: state.start,
+    d: DAYS.filter(isDone),
+    r: DAYS.reduce((a, d) => a + doneReps(d), 0),
+    p: planned(),
+    x: DAYS.map(d => kindOf(d) === "sets" ? [sum(setsFor(d)), scheme(setsFor(d))] : [0, kindOf(d) === "rec" ? "Récupération" : "Test final"]),
+  };
+  return "scriptable:///run/Pompes30?data=" + encodeURIComponent(JSON.stringify(payload));
+}
+let widgetSource = null;
+fetch("pompes30-widget.js").then(r => r.ok ? r.text() : null).then(t => { widgetSource = t; }).catch(() => {});
+$("copyWidget").onclick = () => {
+  if (!widgetSource) { toast("Script pas encore chargé. Utilise « Voir le script »."); return; }
+  navigator.clipboard.writeText(widgetSource)
+    .then(() => toast("Script copié. Colle-le dans Scriptable."))
+    .catch(() => toast("Copie refusée. Utilise « Voir le script » puis copie le texte."));
+};
 
 // ---------- Misc ----------
 let toastT;
