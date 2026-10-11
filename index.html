@@ -1,0 +1,802 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Challenge 30 jours Pompes</title>
+<meta name="description" content="Suis ton challenge 30 jours de pompes : séance du jour, chrono de repos, jours manqués et rappels.">
+<meta name="theme-color" content="#0e131b">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Pompes 30J">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,800;1,800&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: single column app — today's session on top, 30-day board, then reminders, progress and settings. */
+:root {
+  --bg: #eef1f5;
+  --surface: #ffffff;
+  --surface-2: #f5f7fa;
+  --fg: #141a24;
+  --muted: #5d6878;
+  --line: #d9dfe7;
+  --w1: #1f6fd1;
+  --w2: #12955f;
+  --w29: #6a4fc4;
+  --w30: #13284d;
+  --rest: #7b8797;
+  --accent: #17b26a;
+  --accent-ink: #ffffff;
+  --done: #17b26a;
+  --missed: #d64545;
+  --missed-bg: #fdecec;
+  --today-ring: #f2a91e;
+  --font-display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
+  --font-body: "Barlow", "Helvetica Neue", Arial, sans-serif;
+  --radius: 10px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e131b; --surface: #161d28; --surface-2: #1c2533; --fg: #eef2f7; --muted: #95a1b2; --line: #2a3546;
+    --w1: #4a90e8; --w2: #2fbf7f; --w29: #8f78e6; --w30: #7f9bd1; --rest: #7d8898;
+    --accent: #2fd27f; --accent-ink: #06210f; --done: #2fd27f; --missed: #f06a6a; --missed-bg: #3a1b1e; --today-ring: #f5b942;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.45; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+.wrap { max-width: 980px; margin: 0 auto; padding-inline: 16px; padding-block: 20px 48px; display: grid; gap: 20px; }
+h1, h2, h3 { font-family: var(--font-display); margin: 0; text-wrap: balance; }
+button, input { font: inherit; }
+button { cursor: pointer; }
+button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid var(--today-ring); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; }
+
+.top { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.top h1 { font-size: clamp(30px, 6vw, 44px); font-weight: 800; font-style: italic; line-height: .95; text-transform: uppercase; letter-spacing: .01em; }
+.top h1 span { color: var(--accent); display: block; font-size: .62em; letter-spacing: .04em; }
+.sync { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.sync i { width: 8px; height: 8px; border-radius: 50%; background: var(--done); display: inline-block; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; min-width: 0; }
+.label { font-family: var(--font-display); font-weight: 600; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
+.stat b { display: block; font-family: var(--font-display); font-size: 30px; font-weight: 800; line-height: 1.05; }
+.stat.alert b { color: var(--missed); }
+.stat small { color: var(--muted); font-size: 12.5px; }
+.bar { height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+.bar > div { height: 100%; background: var(--accent); width: 0; transition: width .4s; }
+
+.session { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 22px; border-top: 6px solid var(--phase, var(--w1)); }
+.session .head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.session .head h2 { font-size: 34px; font-weight: 800; text-transform: uppercase; }
+.pill { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 99px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
+.pill.today { background: var(--today-ring); color: #2a1b00; border-color: transparent; }
+.pill.done { background: var(--done); color: var(--accent-ink); border-color: transparent; }
+.pill.missed { background: var(--missed); color: #fff; border-color: transparent; }
+.pill.custom { border-style: dashed; }
+.target { display: flex; align-items: baseline; gap: 10px; margin-block: 8px 2px; }
+.target b { font-family: var(--font-display); font-size: 64px; font-weight: 800; line-height: 1; color: var(--phase); }
+.target span { color: var(--muted); }
+.meta { color: var(--muted); margin: 0 0 14px; }
+.sets { display: flex; flex-wrap: wrap; gap: 10px; }
+.set { min-width: 76px; padding: 12px 10px; border-radius: var(--radius); border: 2px dashed var(--line); background: var(--surface-2); color: var(--fg); display: grid; gap: 2px; justify-items: center; transition: transform .1s, background .2s; }
+.set:active { transform: scale(.96); }
+.set b { font-family: var(--font-display); font-size: 30px; font-weight: 800; line-height: 1; }
+.set small { font-size: 11.5px; color: var(--muted); }
+.set.on { border: 2px solid var(--done); background: var(--done); color: var(--accent-ink); }
+.set.on small { color: var(--accent-ink); }
+.bigbtn { margin-top: 14px; width: 100%; padding: 14px; border: 0; border-radius: var(--radius); background: var(--accent); color: var(--accent-ink); font-family: var(--font-display); font-weight: 800; font-size: 20px; letter-spacing: .04em; text-transform: uppercase; }
+.bigbtn.ghost { background: var(--surface-2); color: var(--fg); border: 1px solid var(--line); }
+.linkbtn { background: none; border: 0; padding: 0; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; font-size: 13.5px; }
+.note { font-size: 13px; color: var(--muted); margin-top: 10px; }
+.warn { background: var(--missed-bg); color: var(--missed); border-radius: 8px; padding: 10px 12px; font-size: 13.5px; font-weight: 500; margin-top: 12px; }
+.info { background: var(--surface-2); color: var(--fg); border-radius: 8px; padding: 10px 12px; font-size: 13.5px; font-weight: 500; margin-top: 12px; }
+.maxin { display: flex; gap: 10px; align-items: center; margin-top: 8px; }
+.maxin input { width: 120px; font: 800 34px var(--font-display); padding: 6px 10px; border-radius: 8px; border: 2px solid var(--line); background: var(--surface-2); color: var(--fg); }
+
+/* Sets editor */
+.editor { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; display: grid; gap: 10px; margin-top: 12px; }
+.ed-top { display: flex; gap: 16px; flex-wrap: wrap; }
+.stepper { display: grid; gap: 4px; }
+.stepper > span { font-size: 12px; color: var(--muted); font-weight: 600; }
+.stepper div { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); overflow: hidden; }
+.stepper button { width: 38px; height: 38px; border: 0; background: none; color: var(--fg); font-size: 20px; font-weight: 600; }
+.stepper b { min-width: 46px; text-align: center; font: 800 22px var(--font-display); }
+.ed-sets { display: flex; flex-wrap: wrap; gap: 8px; }
+.ed-sets label { display: grid; gap: 2px; font-size: 11.5px; color: var(--muted); }
+.ed-sets input { width: 64px; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: 800 20px var(--font-display); }
+.ed-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13.5px; }
+.ed-foot b { font-family: var(--font-display); font-size: 18px; }
+
+.timer { background: var(--surface-2); border-radius: var(--radius); padding: 16px; display: grid; gap: 10px; align-content: start; }
+.clock { position: relative; width: 150px; height: 150px; margin: 4px auto; }
+.clock svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.clock circle { fill: none; stroke-width: 9; }
+.clock .trk { stroke: var(--line); }
+.clock .arc { stroke: var(--phase); stroke-linecap: round; transition: stroke-dashoffset .25s linear; }
+.clock .t { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--font-display); font-size: 44px; font-weight: 800; }
+.clock.ring .t { color: var(--accent); animation: pulse .6s ease 3; }
+@keyframes pulse { 50% { transform: scale(1.12); } }
+.row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.chip { padding: 7px 12px; border-radius: 99px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font-weight: 600; font-size: 13.5px; text-decoration: none; display: inline-block; }
+.chip.sel { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.chip.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+.board { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.cell { position: relative; text-align: left; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 0; overflow: hidden; display: grid; grid-template-rows: auto 1fr; min-height: 84px; }
+.cell .h { background: var(--c); color: #fff; font: 600 13px var(--font-display); letter-spacing: .06em; text-transform: uppercase; padding: 4px 7px; display: flex; justify-content: space-between; align-items: center; }
+.cell .b { padding: 6px 7px; display: grid; align-content: start; }
+.cell .b b { font: 800 24px/1 var(--font-display); }
+.cell .b small { color: var(--muted); font-size: 11px; line-height: 1.25; }
+.cell .box { width: 15px; height: 15px; border-radius: 3px; background: rgba(255,255,255,.9); display: grid; place-items: center; color: var(--done); font-size: 12px; font-weight: 800; }
+.cell.done { background: color-mix(in srgb, var(--done) 14%, var(--surface)); }
+.cell.missed { background: var(--missed-bg); border-color: var(--missed); }
+.cell.missed .box { color: var(--missed); }
+.cell.today { outline: 3px solid var(--today-ring); outline-offset: 1px; }
+.cell.sel { box-shadow: 0 0 0 2px var(--fg) inset; }
+.cell.future { opacity: .8; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); margin-top: 12px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.miles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 14px; position: relative; }
+.miles::before { content: ""; position: absolute; top: 9px; left: 10%; right: 10%; height: 2px; background: var(--line); }
+.mile { text-align: center; position: relative; font-size: 12px; color: var(--muted); }
+.mile i { width: 20px; height: 20px; border-radius: 50%; border: 3px solid var(--line); background: var(--surface); display: block; margin: 0 auto 6px; }
+.mile.ok i { background: var(--done); border-color: var(--done); }
+.mile b { display: block; color: var(--fg); font: 600 14px var(--font-display); letter-spacing: .04em; }
+table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13.5px; }
+th, td { border-bottom: 1px solid var(--line); padding: 6px 4px; text-align: left; }
+th { font-weight: 600; color: var(--muted); font-size: 12px; }
+td input { width: 100%; min-width: 0; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); font: 500 14px var(--font-body); }
+.field { display: grid; gap: 6px; }
+.field input { padding: 9px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); font: 500 15px var(--font-body); }
+.inline { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; margin-top: 10px; }
+.tips { margin: 10px 0 0; padding-left: 18px; color: var(--muted); }
+.tips li { margin-bottom: 4px; }
+.tips b { color: var(--fg); font-weight: 600; }
+details > summary { cursor: pointer; font-family: var(--font-display); font-weight: 800; font-size: 20px; letter-spacing: .02em; text-transform: uppercase; list-style-position: outside; }
+.phase-ed { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 14px; }
+.phase-ed h4 { margin: 0; font: 600 15px var(--font-display); letter-spacing: .06em; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+.phase-ed h4 i { width: 10px; height: 10px; border-radius: 2px; background: var(--c); display: inline-block; }
+.settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; }
+.danger { background: none; border: 1px solid var(--missed); color: var(--missed); padding: 8px 12px; border-radius: 8px; font-weight: 600; }
+.confirm { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; font-size: 13.5px; }
+
+.start { display: grid; gap: 14px; border-top: 6px solid var(--accent); }
+.start h2 { font-size: 30px; font-weight: 800; text-transform: uppercase; }
+.start p { margin: 0; color: var(--muted); max-width: 60ch; }
+
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 99px; font-weight: 600; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .25s; max-width: calc(100% - 32px); z-index: 10; }
+.toast.show { opacity: 1; }
+
+@media (max-width: 760px) {
+  .session, .two, .settings-grid { grid-template-columns: minmax(0, 1fr); }
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .board { gap: 5px; }
+  .cell { min-height: 64px; }
+  .cell .h { font-size: 11px; padding: 3px 5px; }
+  .cell .h .lbl-long { display: none; }
+  .cell .b { padding: 4px 5px; }
+  .cell .b b { font-size: 19px; }
+  .cell .b small { display: none; }
+  .cell .box { width: 12px; height: 12px; font-size: 10px; }
+}
+@media (min-width: 761px) { .cell .h .lbl-short { display: none; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1><span>Challenge 30 jours</span>Push-ups</h1>
+    <div class="sync"><i></i><span>Enregistré sur cet appareil</span></div>
+  </header>
+
+  <section class="panel start" id="startView" hidden>
+    <div class="label">Prêt ?</div>
+    <h2>Lance ton challenge</h2>
+    <p>Choisis ton jour 1. L'app calcule chaque jour la séance à faire, lance le chrono de repos entre les séries et signale tout jour oublié. Tu pourras adapter le nombre de séries et de pompes dans les réglages.</p>
+    <div class="inline">
+      <label class="field" for="startDate">Date du jour 1
+        <input type="date" id="startDate">
+      </label>
+      <button class="bigbtn" id="startBtn" style="width:auto;padding-inline:28px;margin-top:0">Démarrer le challenge</button>
+    </div>
+  </section>
+
+  <div id="appView" hidden style="display:grid;gap:20px">
+    <section class="stats">
+      <div class="stat"><span class="label">Progression</span><b class="num" id="stDays">0/30</b><div class="bar"><div id="stBar"></div></div></div>
+      <div class="stat"><span class="label">Série en cours</span><b class="num" id="stStreak">0</b><small id="stStreakTxt">jour d'affilée</small></div>
+      <div class="stat"><span class="label">Pompes faites</span><b class="num" id="stReps">0</b><small id="stRepsTxt"></small></div>
+      <div class="stat" id="stMissBox"><span class="label">Jours manqués</span><b class="num" id="stMiss">0</b><small id="stMissTxt"></small></div>
+    </section>
+
+    <section class="panel session" id="session"></section>
+
+    <section class="panel">
+      <div class="label">Le programme · touche un jour pour l'ouvrir</div>
+      <div class="board" id="board"></div>
+      <div class="legend">
+        <span><i style="background:var(--done)"></i>Fait</span>
+        <span><i style="background:var(--missed)"></i>Manqué</span>
+        <span><i style="outline:2px solid var(--today-ring);background:var(--surface)"></i>Aujourd'hui</span>
+      </div>
+    </section>
+
+    <div class="two">
+      <section class="panel">
+        <div class="label">Ne rate aucun jour</div>
+        <h3 style="font-size:22px;margin-top:4px">Rappels dans ton agenda</h3>
+        <p class="note" style="margin-top:6px">Ajoute les 30 séances à ton calendrier avec une alarme à l'heure choisie, puis une relance 3 h plus tard si tu n'as pas encore fait ta séance.</p>
+        <div class="inline">
+          <label class="field" for="remTime">Heure du rappel
+            <input type="time" id="remTime" value="19:00">
+          </label>
+        </div>
+        <div class="row" style="justify-content:flex-start;margin-top:12px">
+          <button class="chip primary" id="icsBtn">Ajouter à mon agenda (iPhone, Outlook)</button>
+          <a class="chip" id="gcalLink" href="#" target="_blank" rel="noopener">Google Agenda</a>
+        </div>
+        <p class="note" id="icsNote">Sur iPhone, ouvre le fichier téléchargé puis touche « Tout ajouter ».</p>
+      </section>
+
+      <section class="panel">
+        <div class="label">Mes milestones</div>
+        <div class="miles" id="miles"></div>
+        <div class="label" style="margin-top:22px">Mon suivi</div>
+        <table>
+          <thead><tr><th>Date</th><th>Poids (kg)</th><th>Poitrine (cm)</th><th>Max</th></tr></thead>
+          <tbody id="metrics"></tbody>
+        </table>
+      </section>
+    </div>
+
+    <section class="panel">
+      <details id="customize">
+        <summary>Personnaliser le programme</summary>
+        <p class="note">Change le nombre de séries et de pompes de chaque semaine. Les séries déjà cochées restent enregistrées. Pour changer un seul jour, ouvre-le et touche « Ajuster cette séance ».</p>
+        <div class="settings-grid" id="phaseEditors"></div>
+        <div class="phase-ed">
+          <button class="chip" id="resetProgram">Revenir au programme d'origine</button>
+        </div>
+      </details>
+    </section>
+
+    <div class="two">
+      <section class="panel">
+        <div class="label">Technique & conseils</div>
+        <ul class="tips">
+          <li><b>Corps gainé</b>, dos droit, poitrine vers le sol.</li>
+          <li><b>Mains</b> légèrement plus larges que les épaules.</li>
+          <li><b>Respecte les repos</b> : 60–90 s semaines 1–2, 60–120 s ensuite.</li>
+          <li><b>Variantes</b> : serrées (triceps), pieds surélevés (haut des pectoraux).</li>
+          <li><b>Hydrate-toi</b> (1,5 à 2 L/jour) et dors 7 à 9 h.</li>
+          <li>Marche ou cardio 2 à 4 fois par semaine. Progresse à ton rythme.</li>
+        </ul>
+      </section>
+
+      <section class="panel">
+        <div class="label">Réglages</div>
+        <div class="inline">
+          <label class="field" for="editStart">Date du jour 1
+            <input type="date" id="editStart">
+          </label>
+          <button class="chip" id="saveStart">Enregistrer</button>
+        </div>
+        <p class="note">Ta progression est enregistrée dans ce navigateur. Garde une copie pour la transférer sur un autre appareil.</p>
+        <div class="row" style="justify-content:flex-start">
+          <button class="chip" id="exportBtn">Exporter ma progression</button>
+          <label class="chip" for="importFile" style="cursor:pointer">Importer</label>
+          <input type="file" id="importFile" accept="application/json,.json" hidden>
+        </div>
+        <div style="margin-top:16px">
+          <button class="danger" id="resetBtn">Recommencer le challenge</button>
+          <div class="confirm" id="resetConfirm" hidden>Toute la progression sera effacée.
+            <button class="danger" id="resetYes">Oui, tout effacer</button>
+            <button class="chip" id="resetNo">Annuler</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+// ---------- Program (from the poster) ----------
+const PHASES = {
+  w1:   { name: "Semaine 1", range: "jours 1–7",   color: "var(--w1)",   rest: "60–90 s",  restDefault: 90,  sets: [15, 15, 15, 15] },
+  w2:   { name: "Semaine 2", range: "jours 8–14",  color: "var(--w2)",   rest: "60–90 s",  restDefault: 90,  sets: [15, 15, 15, 15, 15] },
+  w3:   { name: "Semaine 3", range: "jours 15–21", color: "var(--w2)",   rest: "60–120 s", restDefault: 90,  sets: [20, 20, 20, 20] },
+  w4:   { name: "Semaine 4", range: "jours 22–27", color: "var(--w2)",   rest: "60–120 s", restDefault: 120, sets: [20, 20, 20, 30] },
+  rec:  { name: "Récupération", color: "var(--rest)" },
+  easy: { name: "Jour 29", range: "pompes faciles", color: "var(--w29)", rest: "60–90 s", restDefault: 60, sets: [10, 10, 10] },
+  test: { name: "Test final", color: "var(--w30)" },
+};
+const EDITABLE = ["w1", "w2", "w3", "w4", "easy"];
+const phaseOf = d => d <= 7 ? "w1" : d <= 14 ? "w2" : d <= 21 ? "w3" : d <= 27 ? "w4" : d === 28 ? "rec" : d === 29 ? "easy" : "test";
+const kindOf = d => d === 28 ? "rec" : d === 30 ? "test" : "sets";
+const DAYS = Array.from({ length: 30 }, (_, i) => i + 1);
+
+// ---------- Date helpers (local calendar days) ----------
+const pad = n => String(n).padStart(2, "0");
+const isoLocal = (dt = new Date()) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+const toUTC = iso => { const [y, m, d] = iso.split("-").map(Number); return Date.UTC(y, m - 1, d); };
+const addDays = (iso, n) => { const t = new Date(toUTC(iso) + n * 864e5); return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`; };
+const fmtDate = iso => new Date(toUTC(iso)).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+const fmtShort = iso => new Date(toUTC(iso)).toLocaleDateString("fr-FR", { day: "numeric", month: "short", timeZone: "UTC" });
+
+// ---------- State ----------
+// { start, days: { [n]: { sets:[0|1], done, at, max } }, metrics: {}, remTime, program: { phase: [reps] }, overrides: { [n]: [reps] } }
+let state = null;
+let selected = null;
+let editingDay = false;
+const $ = id => document.getElementById(id);
+
+const sum = a => a.reduce((x, y) => x + y, 0);
+function setsFor(d) {
+  if (kindOf(d) !== "sets") return [];
+  return state.overrides[d] || state.program[phaseOf(d)] || PHASES[phaseOf(d)].sets;
+}
+function scheme(sets) {
+  // Group consecutive equal sets: [20,20,20,30] -> "3 × 20 + 1 × 30"
+  const parts = [];
+  sets.forEach(n => { const last = parts[parts.length - 1]; if (last && last.n === n) last.c++; else parts.push({ n, c: 1 }); });
+  return parts.map(p => `${p.c} × ${p.n}`).join(" + ");
+}
+const planned = () => DAYS.reduce((a, d) => a + sum(setsFor(d)), 0);
+
+function todayIndex() { return Math.floor((toUTC(isoLocal()) - toUTC(state.start)) / 864e5) + 1; }
+const rec = d => state.days[d] || null;
+const isDone = d => !!rec(d)?.done;
+const isMissed = d => d < todayIndex() && !isDone(d);
+
+function doneReps(d) {
+  const r = rec(d);
+  if (!r || kindOf(d) !== "sets") return 0;
+  return setsFor(d).reduce((a, n, i) => a + (r.sets?.[i] ? n : 0), 0);
+}
+function streak() {
+  const t = Math.min(todayIndex(), 30);
+  if (t < 1) return 0;
+  let d = isDone(t) ? t : t - 1, n = 0;
+  while (d >= 1 && isDone(d)) { n++; d--; }
+  return n;
+}
+
+// ---------- Persistence (localStorage) ----------
+const LS_KEY = "pushups30:v1";
+function load() {
+  try { return normalize(JSON.parse(localStorage.getItem(LS_KEY) || "null")); } catch { return null; }
+}
+function save() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+  catch { toast("Impossible d'enregistrer : le stockage du navigateur est bloqué."); }
+}
+function normalize(raw) {
+  if (!raw || !raw.start) return null;
+  return {
+    start: raw.start,
+    days: { ...(raw.days || {}) },
+    metrics: { ...(raw.metrics || {}) },
+    remTime: raw.remTime || "19:00",
+    program: { ...(raw.program || {}) },
+    overrides: { ...(raw.overrides || {}) },
+  };
+}
+function commit() { save(); render(); }
+
+// Keep a day's checked sets consistent after its set count changes.
+function resyncDay(d) {
+  const r = state.days[d];
+  if (!r || kindOf(d) !== "sets") return;
+  const n = setsFor(d).length;
+  const sets = (r.sets || []).slice(0, n);
+  while (sets.length < n) sets.push(0);
+  const done = sets.every(Boolean);
+  state.days[d] = { ...r, sets, done };
+  if (!done) delete state.days[d].at;
+  else if (!r.at) state.days[d].at = isoLocal();
+}
+
+// ---------- Actions ----------
+function toggleSet(d, i) {
+  const n = setsFor(d).length;
+  const r = state.days[d] = { ...(state.days[d] || {}) };
+  r.sets = Array.from({ length: n }, (_, k) => r.sets?.[k] ? 1 : 0);
+  r.sets[i] = r.sets[i] ? 0 : 1;
+  const wasDone = r.done;
+  r.done = r.sets.every(Boolean);
+  if (r.done && !wasDone) { r.at = isoLocal(); celebrate(d); }
+  if (!r.done) delete r.at;
+  // Auto-start the rest timer after a set that is not the last one.
+  if (r.sets[i] && !r.done) startTimer(timerLen);
+  if (r.done) stopTimer();
+  commit();
+}
+function markRecovery(d) {
+  const r = state.days[d] = { ...(state.days[d] || {}) };
+  r.done = !r.done;
+  if (r.done) { r.at = isoLocal(); celebrate(d); } else delete r.at;
+  commit();
+}
+function saveMax(d, v) {
+  const n = parseInt(v, 10);
+  if (!(n > 0)) { toast("Entre ton nombre de pompes."); return; }
+  state.days[d] = { ...(state.days[d] || {}), max: n, done: true, at: isoLocal() };
+  state.metrics = { ...state.metrics, 30: { ...(state.metrics[30] || {}), max: n } };
+  celebrate(d);
+  commit();
+}
+function celebrate(d) {
+  const msgs = { 7: "Semaine 1 bouclée !", 14: "Deux semaines, solide.", 21: "Trois semaines. Plus que 9 jours.", 27: "Dernière grosse séance faite.", 30: "Challenge terminé. Bravo !" };
+  toast(msgs[d] || `Jour ${d} validé ✓`);
+  beep(880, .15);
+}
+
+// ---------- Sets editor (shared by the day and phase editors) ----------
+function setsEditor(sets, onChange) {
+  const box = document.createElement("div");
+  box.className = "editor";
+  const uniform = sets.every(n => n === sets[0]);
+  box.innerHTML = `
+    <div class="ed-top">
+      <div class="stepper"><span>Séries</span><div><button type="button" data-a="s-" aria-label="Retirer une série">−</button><b class="num">${sets.length}</b><button type="button" data-a="s+" aria-label="Ajouter une série">+</button></div></div>
+      <div class="stepper"><span>Pompes par série${uniform ? "" : " (toutes)"}</span><div><button type="button" data-a="r-" aria-label="Une pompe de moins par série">−</button><b class="num">${uniform ? sets[0] : "mix"}</b><button type="button" data-a="r+" aria-label="Une pompe de plus par série">+</button></div></div>
+    </div>
+    <div class="ed-sets">${sets.map((n, i) => `<label>Série ${i + 1}<input type="number" inputmode="numeric" min="1" max="300" value="${n}" data-i="${i}"></label>`).join("")}</div>
+    <div class="ed-foot"><span>Total : <b class="num">${sum(sets)}</b> pompes · ${scheme(sets)}</span></div>`;
+  box.querySelectorAll("[data-a]").forEach(b => b.onclick = () => {
+    let s = [...sets];
+    const a = b.dataset.a;
+    if (a === "s+") s.push(s[s.length - 1] || 10);
+    if (a === "s-" && s.length > 1) s.pop();
+    if (a === "r+") s = s.map(n => Math.min(300, n + 1));
+    if (a === "r-") s = s.map(n => Math.max(1, n - 1));
+    onChange(s);
+  });
+  box.querySelectorAll("input[data-i]").forEach(inp => inp.onchange = () => {
+    const v = Math.max(1, Math.min(300, parseInt(inp.value, 10) || 1));
+    const s = [...sets]; s[+inp.dataset.i] = v;
+    onChange(s);
+  });
+  return box;
+}
+
+// ---------- Rest timer ----------
+let timerLen = 90, timerLeft = 0, timerEnd = 0, timerId = null, wakeLock = null;
+function startTimer(sec) {
+  timerLen = sec; timerEnd = Date.now() + sec * 1000; timerLeft = sec;
+  clearInterval(timerId);
+  timerId = setInterval(tick, 250);
+  unlockAudio();
+  try { navigator.wakeLock?.request("screen").then(l => { wakeLock = l; }).catch(() => {}); } catch {}
+  tick();
+}
+function stopTimer() { clearInterval(timerId); timerId = null; timerLeft = 0; releaseWake(); drawTimer(); }
+function releaseWake() { try { wakeLock?.release(); } catch {} wakeLock = null; }
+function tick() {
+  timerLeft = Math.max(0, Math.ceil((timerEnd - Date.now()) / 1000));
+  if (timerLeft === 0) {
+    clearInterval(timerId); timerId = null; releaseWake(); drawTimer(true);
+    beep(990, .25); setTimeout(() => beep(990, .25), 320); setTimeout(() => beep(1320, .4), 640);
+    try { navigator.vibrate?.([200, 100, 200]); } catch {}
+    return;
+  }
+  drawTimer();
+}
+function drawTimer(ring) {
+  const c = document.querySelector(".clock"); if (!c) return;
+  const shown = timerId ? timerLeft : timerLen;
+  c.querySelector(".t").textContent = `${Math.floor(shown / 60)}:${pad(shown % 60)}`;
+  const arc = c.querySelector(".arc"), len = 2 * Math.PI * 64;
+  arc.style.strokeDasharray = len;
+  arc.style.strokeDashoffset = timerId ? len * (1 - timerLeft / timerLen) : 0;
+  c.classList.toggle("ring", !!ring);
+  const b = $("timerBtn"); if (b) b.textContent = timerId ? "Arrêter" : (ring ? "Série suivante !" : "Lancer le repos");
+}
+let audio = null;
+function unlockAudio() { try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume?.(); } catch {} }
+function beep(f, dur) {
+  try {
+    unlockAudio();
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.frequency.value = f; o.connect(g); g.connect(audio.destination);
+    g.gain.setValueAtTime(.2, audio.currentTime); g.gain.exponentialRampToValueAtTime(.001, audio.currentTime + dur);
+    o.start(); o.stop(audio.currentTime + dur);
+  } catch {}
+}
+
+// ---------- Render ----------
+function render() {
+  $("startView").hidden = !!state;
+  $("appView").hidden = !state;
+  if (!state) return;
+  const t = todayIndex();
+  if (selected == null || selected < 1 || selected > 30) selected = Math.min(Math.max(t, 1), 30);
+  renderStats(t); renderSession(t); renderBoard(t); renderMiles(); renderMetrics(); renderPhaseEditors();
+  $("editStart").value = state.start;
+  if (document.activeElement !== $("remTime")) $("remTime").value = state.remTime;
+  $("gcalLink").href = gcalUrl();
+}
+
+function renderStats(t) {
+  const done = DAYS.filter(isDone).length;
+  const missed = DAYS.filter(isMissed).length;
+  const reps = DAYS.reduce((a, d) => a + doneReps(d), 0);
+  $("stDays").textContent = `${done}/30`;
+  $("stBar").style.width = (done / 30 * 100) + "%";
+  const s = streak();
+  $("stStreak").textContent = s;
+  $("stStreakTxt").textContent = s > 1 ? "jours d'affilée" : "jour d'affilée";
+  $("stReps").textContent = reps.toLocaleString("fr-FR");
+  $("stRepsTxt").textContent = `sur ${planned().toLocaleString("fr-FR")} prévues`;
+  $("stMiss").textContent = missed;
+  $("stMissBox").classList.toggle("alert", missed > 0);
+  $("stMissTxt").textContent = missed ? "à rattraper" : (t < 1 ? `départ dans ${1 - t} j` : "aucun, continue");
+}
+
+function statusPill(d, t) {
+  if (isDone(d)) { const at = rec(d).at; const late = at && at > addDays(state.start, d - 1); return `<span class="pill done">${late ? "Rattrapé" : "Fait"}</span>`; }
+  if (d === t) return `<span class="pill today">Aujourd'hui</span>`;
+  if (d < t) return `<span class="pill missed">Manqué</span>`;
+  return `<span class="pill">À venir</span>`;
+}
+
+function renderSession(t) {
+  const d = selected, phase = phaseOf(d), ph = PHASES[phase], kind = kindOf(d), r = rec(d) || {};
+  const el = $("session");
+  el.style.setProperty("--phase", ph.color);
+  const date = addDays(state.start, d - 1);
+  const sets = setsFor(d);
+  const custom = kind === "sets" && (state.overrides[d] || state.program[phase]);
+  let left = `<div class="head"><h2>Jour ${d}</h2>${statusPill(d, t)}<span class="pill">${fmtDate(date)}</span>${custom ? `<span class="pill custom">Personnalisé</span>` : ""}</div>`;
+  if (t < 1 && d === 1) left += `<div class="info">Le challenge commence ${t === 0 ? "demain" : `dans ${1 - t} jours`}. Voici ta première séance.</div>`;
+  if (t > 30 && d === 30 && !isDone(30)) left += `<div class="warn">Le jour 30 est passé. Fais ton test et note ton résultat.</div>`;
+
+  if (kind === "sets") {
+    const on = r.sets || [];
+    left += `
+      <div class="target"><b class="num">${sum(sets)}</b><span>pompes au total</span></div>
+      <p class="meta">${scheme(sets)} · repos ${ph.rest}${d === 29 ? " · sans aller à l'échec" : ""}</p>
+      <div class="label" style="margin-bottom:8px">Coche chaque série terminée</div>
+      <div class="sets">${sets.map((n, i) => `
+        <button class="set${on[i] ? " on" : ""}" data-set="${i}" aria-pressed="${!!on[i]}">
+          <small>Série ${i + 1}</small><b class="num">${n}</b><small>${on[i] ? "✓ faite" : "pompes"}</small>
+        </button>`).join("")}
+      </div>
+      <div class="row" style="justify-content:flex-start;margin-top:12px">
+        <button class="linkbtn" id="editDayBtn">${editingDay ? "Fermer l'ajustement" : "Ajuster cette séance"}</button>
+        ${state.overrides[d] ? `<button class="linkbtn" id="clearDayBtn">Revenir au programme de la semaine</button>` : ""}
+      </div>
+      <div id="dayEditor"></div>`;
+  } else if (kind === "rec") {
+    left += `
+      <div class="target"><b style="font-size:46px">Récupération</b></div>
+      <p class="meta">Marche, mobilité. Aucune séance intense aujourd'hui.</p>
+      <button class="bigbtn${r.done ? " ghost" : ""}" id="recBtn">${r.done ? "✓ Récupération faite (annuler)" : "J'ai fait ma récupération"}</button>`;
+  } else {
+    const firstMax = state.metrics[1]?.max;
+    left += `
+      <div class="target"><b style="font-size:46px">Test final</b></div>
+      <p class="meta">Maximum de pompes strictes en une seule série, après échauffement.</p>
+      <label class="label" for="maxInput">Mon résultat</label>
+      <div class="maxin"><input id="maxInput" type="number" inputmode="numeric" min="1" value="${r.max || ""}" placeholder="0"><button class="bigbtn" id="maxBtn" style="margin:0;width:auto;padding-inline:20px">Valider</button></div>
+      ${r.max && firstMax ? `<p class="note">Jour 1 : ${firstMax} → Jour 30 : ${r.max} (${r.max - firstMax >= 0 ? "+" : ""}${r.max - firstMax} pompes)</p>` : ""}
+      ${!firstMax ? `<p class="note">Note ton max du jour 1 dans « Mon suivi » pour voir ta progression.</p>` : ""}`;
+  }
+  if (isMissed(d)) left += `<div class="warn">Jour manqué. Fais-le dès que possible puis coche tes séries pour garder le fil.</div>`;
+  if (d !== t && t >= 1 && t <= 30) left += `<button class="bigbtn ghost" id="goToday" style="font-size:16px">Revenir à aujourd'hui (jour ${t})</button>`;
+
+  let right;
+  if (kind === "sets") {
+    const opts = ph.rest === "60–120 s" ? [60, 90, 120] : [60, 90];
+    if (!timerId && !opts.includes(timerLen)) timerLen = ph.restDefault;
+    right = `
+      <div class="timer">
+        <div class="label" style="text-align:center">Repos · ${ph.rest}</div>
+        <div class="clock"><svg viewBox="0 0 150 150"><circle class="trk" cx="75" cy="75" r="64"/><circle class="arc" cx="75" cy="75" r="64"/></svg><div class="t num">1:30</div></div>
+        <div class="row">${opts.map(s => `<button class="chip${s === timerLen ? " sel" : ""}" data-rest="${s}">${s} s</button>`).join("")}</div>
+        <button class="bigbtn" id="timerBtn" style="margin-top:4px">Lancer le repos</button>
+        <p class="note" style="text-align:center;margin:0">Le chrono démarre seul quand tu coches une série. Un bip sonne à la fin.</p>
+      </div>`;
+  } else {
+    right = `<div class="timer"><div class="label">Règles du jeu</div>
+      <ul class="tips" style="margin:0"><li>Suis le programme jour après jour.</li><li>Note chaque séance dans l'app.</li><li>Respecte les temps de repos.</li><li>Garde une bonne technique.</li></ul></div>`;
+  }
+  el.innerHTML = `<div>${left}</div>${right}`;
+
+  el.querySelectorAll("[data-set]").forEach(b => b.onclick = () => toggleSet(d, +b.dataset.set));
+  el.querySelectorAll("[data-rest]").forEach(b => b.onclick = () => { timerLen = +b.dataset.rest; if (timerId) startTimer(timerLen); renderSession(todayIndex()); });
+  const on = (id, fn) => { const b = $(id); if (b) b.onclick = fn; };
+  on("timerBtn", () => timerId ? stopTimer() : startTimer(timerLen));
+  on("recBtn", () => markRecovery(d));
+  on("maxBtn", () => saveMax(d, $("maxInput").value));
+  on("goToday", () => { selected = t; editingDay = false; render(); });
+  on("editDayBtn", () => { editingDay = !editingDay; renderSession(t); });
+  on("clearDayBtn", () => { delete state.overrides[d]; resyncDay(d); commit(); toast(`Jour ${d} : programme de la semaine`); });
+  if (kind === "sets" && editingDay) {
+    $("dayEditor").appendChild(setsEditor(sets, s => { state.overrides = { ...state.overrides, [d]: s }; resyncDay(d); commit(); }));
+  }
+  drawTimer();
+}
+
+function renderBoard(t) {
+  $("board").innerHTML = DAYS.map(d => {
+    const ph = PHASES[phaseOf(d)], kind = kindOf(d);
+    const cls = ["cell", isDone(d) && "done", isMissed(d) && "missed", d === t && "today", d === selected && "sel", d > t && "future"].filter(Boolean).join(" ");
+    const mark = isDone(d) ? "✓" : isMissed(d) ? "✕" : "";
+    let body;
+    if (kind === "sets") body = `<b class="num">${sum(setsFor(d))}</b><small>${scheme(setsFor(d))}</small>`;
+    else if (kind === "rec") body = `<b style="font-size:15px">RÉCUP</b><small>Marche, mobilité</small>`;
+    else body = `<b style="font-size:15px">TEST</b><small>${rec(30)?.max ? rec(30).max + " pompes" : "Max en 1 série"}</small>`;
+    return `<button class="${cls}" data-day="${d}" style="--c:${ph.color}" aria-label="Jour ${d}">
+      <span class="h"><span><span class="lbl-long">Jour </span><span class="lbl-short">J</span>${d}</span><span class="box">${mark}</span></span>
+      <span class="b">${body}</span></button>`;
+  }).join("");
+  $("board").querySelectorAll("[data-day]").forEach(b => b.onclick = () => {
+    selected = +b.dataset.day; editingDay = false; render();
+    $("session").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+}
+
+function renderMiles() {
+  const M = [7, 14, 21, 27, 30];
+  $("miles").innerHTML = M.map(d => {
+    const ok = DAYS.slice(0, d).every(isDone);
+    const txt = d === 30 ? "Test final" : `${sum(setsFor(d))} pompes`;
+    return `<div class="mile${ok ? " ok" : ""}"><i></i><b>Jour ${d}</b>${txt}</div>`;
+  }).join("");
+}
+
+function renderMetrics() {
+  const tb = $("metrics");
+  if (tb.contains(document.activeElement)) return; // don't clobber while typing
+  tb.innerHTML = [1, 15, 30].map(d => {
+    const m = state.metrics[d] || {};
+    return `<tr><td>Jour ${d}<br><small style="color:var(--muted)">${fmtShort(addDays(state.start, d - 1))}</small></td>
+      ${["poids", "poitrine", "max"].map(k => `<td><input id="m-${d}-${k}" type="number" inputmode="decimal" step="any" data-m="${d}" data-k="${k}" value="${m[k] ?? ""}" aria-label="${k} jour ${d}"></td>`).join("")}</tr>`;
+  }).join("");
+  tb.querySelectorAll("input").forEach(inp => inp.onchange = () => {
+    const d = inp.dataset.m, k = inp.dataset.k, v = inp.value === "" ? null : Number(inp.value);
+    const m = { ...(state.metrics[d] || {}) };
+    if (v == null) delete m[k]; else m[k] = v;
+    state.metrics = { ...state.metrics, [d]: m };
+    save();
+    toast("Suivi enregistré");
+  });
+}
+
+function renderPhaseEditors() {
+  const host = $("phaseEditors");
+  host.innerHTML = "";
+  EDITABLE.forEach(p => {
+    const ph = PHASES[p];
+    const sets = state.program[p] || ph.sets;
+    const wrap = document.createElement("div");
+    wrap.className = "phase-ed";
+    wrap.innerHTML = `<h4 style="--c:${ph.color}"><i></i>${ph.name} <span style="color:var(--muted);font-weight:500;letter-spacing:0;text-transform:none">· ${ph.range}</span></h4>`;
+    wrap.appendChild(setsEditor(sets, s => {
+      state.program = { ...state.program, [p]: s };
+      DAYS.filter(d => phaseOf(d) === p).forEach(resyncDay);
+      commit();
+    }));
+    host.appendChild(wrap);
+  });
+}
+
+// ---------- Calendar reminders ----------
+function dayLabel(d) {
+  const k = kindOf(d);
+  if (k === "sets") return `${sum(setsFor(d))} pompes (${scheme(setsFor(d))})`;
+  if (k === "rec") return "Récupération : marche, mobilité";
+  return "Test final : max de pompes en 1 série";
+}
+function icsEscape(s) { return s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n"); }
+function buildICS() {
+  const [hh, mm] = (state.remTime || "19:00").split(":");
+  const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
+  const url = location.href.split("#")[0];
+  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Challenge Pompes//FR", "CALSCALE:GREGORIAN", "METHOD:PUBLISH", "X-WR-CALNAME:Challenge 30 jours pompes"];
+  DAYS.forEach(d => {
+    const date = addDays(state.start, d - 1).replace(/-/g, "");
+    const what = dayLabel(d);
+    const rest = PHASES[phaseOf(d)].rest ? ` · repos ${PHASES[phaseOf(d)].rest}` : "";
+    lines.push("BEGIN:VEVENT",
+      `UID:pushups30-${state.start}-${d}@challenge-pompes`,
+      `DTSTAMP:${stamp}`,
+      `DTSTART:${date}T${hh}${mm}00`,
+      "DURATION:PT20M",
+      `SUMMARY:${icsEscape(`💪 Jour ${d}/30 · ${what}`)}`,
+      `DESCRIPTION:${icsEscape(`Jour ${d} : ${what}${rest}. Coche tes séries : ${url}`)}`,
+      `URL:${url}`,
+      "BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${icsEscape(`Jour ${d} : ${what}`)}`, "TRIGGER:PT0M", "END:VALARM",
+      "BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${icsEscape(`Pas encore fait ? Jour ${d} : ${what}`)}`, "TRIGGER:PT3H", "END:VALARM",
+      "END:VEVENT");
+  });
+  lines.push("END:VCALENDAR");
+  return lines.join("\r\n") + "\r\n";
+}
+function downloadFile(name, text, type) {
+  const blob = new Blob([text], { type });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+function gcalUrl() {
+  // One daily recurring event over the 30 days.
+  const [hh, mm] = (state.remTime || "19:00").split(":");
+  const day = state.start.replace(/-/g, "");
+  const endM = (+hh * 60 + +mm + 20) % 1440;
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Paris";
+  const q = new URLSearchParams({
+    action: "TEMPLATE",
+    text: "💪 Challenge pompes : séance du jour",
+    dates: `${day}T${hh}${mm}00/${day}T${pad(Math.floor(endM / 60))}${pad(endM % 60)}00`,
+    ctz: tz,
+    recur: "RRULE:FREQ=DAILY;COUNT=30",
+    details: `Ouvre l'app, fais ta séance et coche tes séries : ${location.href.split("#")[0]}`,
+  });
+  return "https://calendar.google.com/calendar/render?" + q.toString();
+}
+
+// ---------- Misc ----------
+let toastT;
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 2400); }
+
+$("startBtn").onclick = () => {
+  const v = $("startDate").value || isoLocal();
+  state = normalize({ start: v });
+  selected = null; commit();
+  toast(v > isoLocal() ? `C'est noté. Rendez-vous le ${fmtShort(v)} !` : "C'est parti ! Jour 1 : 60 pompes.");
+};
+$("saveStart").onclick = () => { const v = $("editStart").value; if (!v) return; state.start = v; selected = null; commit(); toast("Date du jour 1 mise à jour"); };
+$("remTime").onchange = () => { state.remTime = $("remTime").value || "19:00"; save(); $("gcalLink").href = gcalUrl(); };
+$("icsBtn").onclick = () => { downloadFile("challenge-pompes.ics", buildICS(), "text/calendar"); toast("Fichier agenda téléchargé"); };
+$("resetProgram").onclick = () => { state.program = {}; state.overrides = {}; DAYS.forEach(resyncDay); commit(); toast("Programme d'origine rétabli"); };
+$("exportBtn").onclick = () => downloadFile(`challenge-pompes-${isoLocal()}.json`, JSON.stringify(state, null, 2), "application/json");
+$("importFile").onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const s = normalize(JSON.parse(await f.text()));
+    if (!s) throw new Error();
+    state = s; selected = null; commit(); toast("Progression importée");
+  } catch { toast("Ce fichier n'est pas une sauvegarde du challenge."); }
+  e.target.value = "";
+};
+$("resetBtn").onclick = () => { $("resetConfirm").hidden = false; };
+$("resetNo").onclick = () => { $("resetConfirm").hidden = true; };
+$("resetYes").onclick = () => { $("resetConfirm").hidden = true; state = normalize({ start: isoLocal(), remTime: state.remTime }); selected = null; commit(); toast("Challenge relancé à partir d'aujourd'hui"); };
+
+// Re-render when the calendar day changes while the app stays open.
+let lastDay = isoLocal();
+function checkDay() { if (state && isoLocal() !== lastDay) { lastDay = isoLocal(); selected = null; render(); } }
+setInterval(checkDay, 60000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) checkDay(); });
+
+$("startDate").value = addDays(isoLocal(), 1);
+state = load();
+render();
+
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+</script>
+</body>
+</html>
